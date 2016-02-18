@@ -238,7 +238,7 @@ end
 options = {
   :config_file => "#{Dir.home}/.gddyndns.yaml",
   :cache_file => "#{Dir.home}/.gddyndns.cache",
-  :user_agent => 'MMA GoogleDomains DynDNS Updater Under Dev - please do not block!',
+  :user_agent => 'HeshApps GoogleDomains Dynamic DNS Updater v1.0',
   :force_update => false,
   :debug => false
 }
