@@ -27,6 +27,7 @@ require 'pp'
 require 'optparse'
 require 'open-uri'
 require 'yaml'
+require 'logger'
 
 # ------------------
 # Helper Classes
@@ -38,6 +39,9 @@ class GoogleDomainsDynDNSUpdater
     @options = options
     @config = read_config_file
     @responses = learn_responses
+    @logger = Logger.new(STDOUT)
+    @logger.level = @options[:debug] ? Logger::DEBUG : Logger::INFO
+    @logger.info($0) { "Starting..." }
   end
 
   def run()
@@ -46,6 +50,7 @@ class GoogleDomainsDynDNSUpdater
     # in the past
     #
     @cache = read_cache_file
+    @logger.debug @cache.inspect
 
     #
     # Get the Public IP (WAN). We will compare this with the IP
@@ -53,7 +58,7 @@ class GoogleDomainsDynDNSUpdater
     # updated in Google Domains' DNS
     #
     @myip = get_public_ip
-    info_put "Public IP: #{@myip}"
+    @logger.info "Public IP: #{@myip}"
 
     #
     # Update IP of known hosts
@@ -62,6 +67,7 @@ class GoogleDomainsDynDNSUpdater
   end
 
   def report()
+    @logger.info($0) { "Done." }
   end
 
   private
@@ -92,7 +98,7 @@ class GoogleDomainsDynDNSUpdater
     if File.exists?(options[:config_file])
       return YAML.load_file(options[:config_file])
     else
-      error_put "Config file [#{options[:config_file]}] missing!"
+      @logger.error "Config file [#{options[:config_file]}] missing!"
     end
   end
 
@@ -128,7 +134,7 @@ class GoogleDomainsDynDNSUpdater
   # Store IPs from current update into cache
   #
   def write_cache_file()
-    debug_put @cache.inspect
+    @logger.debug @cache.inspect
     File.open(options[:cache_file], "w") {|f| f.write(@cache.to_yaml)}
   end
 
@@ -151,10 +157,10 @@ class GoogleDomainsDynDNSUpdater
       # Skip update if current public IP matches the IP for the host in the cache file
       #
       if @cache[h['host']] && @myip.eql?(@cache[h['host']]['ip'])
-        info_put "Skipping #{h['host']} - Already pointing to #{@myip}"
+        @logger.info "Skipping #{h['host']} - Already pointing to #{@myip}"
       else
         url = "https://domains.google.com/nic/update?hostname=#{h['host']}&myip=#{@myip}"
-        info_put "Updating host [#{h['host']}] - #{url}"
+        @logger.info "Updating host [#{h['host']}] - #{url}"
 
         #
         # Access Google Domains API to update IP
@@ -169,13 +175,13 @@ class GoogleDomainsDynDNSUpdater
                 # Cache if API call was successful
                 #
                 @cache[h['host']] = {'ip' => ip}
-                debug_put "[#{@responses[sts][0]}][#{sts}] : [#{@responses[sts][1]}]"
+                @logger.debug "[#{@responses[sts][0]}][#{sts}] : [#{@responses[sts][1]}]"
               else
-                warn_put "[#{@responses[line][0]}][#{line}] : [#{@responses[line][1]}]"
+                @logger.warn "[#{@responses[line][0]}][#{line}] : [#{@responses[line][1]}]"
               end
             }
           else
-            error_put "Error status returned #{r.status.inspect}"
+            @logger.error "Error status returned #{r.status.inspect}"
           end
         }
         write_cache_file
@@ -195,37 +201,6 @@ class GoogleDomainsDynDNSUpdater
             'badagent'  => ['Error', 'Your Dynamic DNS client is making bad requests. Ensure the user agent is set in the request, and that youre only attempting to set an IPv4 address. IPv6 is not supported.'],
             'abuse'     => ['Error', 'Dynamic DNS access for the hostname has been blocked due to failure to interpret previous responses correctly.'],
             '911'       => ['Error', 'An error happened on our end. Wait 5 minutes and retry.']}
-  end
-
-  #
-  # Debug message
-  #
-  def debug_put(str)
-    if @options[:debug]
-      puts "[DEBUG] #{str}"
-    end
-  end
-
-  #
-  # Informational message
-  #
-  def info_put(str)
-      puts "[INFO] #{str}"
-  end
-
-  #
-  # Warning message
-  #
-  def warn_put(str)
-      puts "[WARNING] #{str}"
-  end
-
-  #
-  # Error message
-  #
-  def error_put(str)
-      puts "[ERROR] #{str}"
-      exit 1
   end
 end
 
